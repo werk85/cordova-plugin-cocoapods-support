@@ -5,7 +5,9 @@ var fs = require('fs');
 var path = require("path");
 var xml2js = require('xml2js');
 var spawn = require('child_process').spawn;
+var Q = require('q');
 var parser = new xml2js.Parser();
+var ConfigParser = require('cordova-common').ConfigParser;
 require('shelljs/global');
 
 module.exports = function (context) {
@@ -14,11 +16,10 @@ module.exports = function (context) {
         return;
     }
 
-    var Q = context.requireCordovaModule('q');
     var podfileContents = [];
     var rootPath = context.opts.projectRoot;
     var configXmlPath = path.join(rootPath, 'config.xml');
-    var configParser = getConfigParser(context, configXmlPath);
+    var configParser = new ConfigParser(configXmlPath);
     var appName = configParser.name();
     var oldMinVersion = configParser.getPreference('pods_ios_min_version', 'ios') ||
         configParser.getPreference('pods_ios_min_version');
@@ -281,14 +282,7 @@ module.exports = function (context) {
             var buildContent = fs.readFileSync('platforms/ios/cordova/lib/build.js', 'utf8');
             var targetRegex = new RegExp("'-target',\\s*projectName\\s*,", 'g');
             var targetFix = "'-scheme', projectName,";
-            var projectRegex = new RegExp("'-project'\\s*,\\s*projectName\\s*\\+\\s*'\\.xcodeproj'\\s*,", 'g');
-            var projectFix = "'-workspace', projectName + '.xcworkspace',";
-            var xcodeprojRegex = /\.xcodeproj/g;
-            var xcodeprojFix = '.xcworkspace';
-            var fixedBuildContent = buildContent
-                .replace(targetRegex, targetFix)
-                .replace(projectRegex, projectFix)
-                .replace(xcodeprojRegex, xcodeprojFix);
+            var fixedBuildContent = buildContent.replace(targetRegex, targetFix);
 
             fs.writeFileSync('platforms/ios/cordova/lib/build.js', fixedBuildContent);
 
@@ -345,19 +339,6 @@ module.exports = function (context) {
 
     function copyTpl(src, dest, data) {
         fs.writeFileSync(dest, templify(fs.readFileSync(src, 'utf8'), data));
-    }
-
-    function getConfigParser(context, config) {
-        var semver = context.requireCordovaModule('semver');
-        var ConfigParser;
-
-        if (semver.lt(context.opts.cordova.version, '5.4.0')) {
-            ConfigParser = context.requireCordovaModule('cordova-lib/src/ConfigParser/ConfigParser');
-        } else {
-            ConfigParser = context.requireCordovaModule('cordova-common/src/ConfigParser/ConfigParser');
-        }
-
-        return new ConfigParser(config);
     }
 
     function maxVer(v1, v2) {
